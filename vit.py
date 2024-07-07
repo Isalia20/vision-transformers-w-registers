@@ -81,7 +81,7 @@ class TransformerEncoder(nn.Module):
 
 
 class VisionTransformer(nn.Module):
-    def __init__(self, image_size, patch_size, emb_dim, num_attn_heads, intermediate_size, num_layers, num_registers):
+    def __init__(self, image_size, patch_size, emb_dim, num_attn_heads, intermediate_size, num_layers, num_registers, num_classes):
         super().__init__()
         self.patch_size = patch_size
         self.emb_dim = emb_dim
@@ -93,6 +93,8 @@ class VisionTransformer(nn.Module):
         nn.init.xavier_uniform_(self.cls_token)
         nn.init.xavier_uniform_(self.register_tokens)
         self.encoder = TransformerEncoder(emb_dim, num_attn_heads, intermediate_size, num_layers)
+        self.cls_token_idx = (image_size // patch_size) ** 2
+        self.cls_head = nn.Linear(in_features=emb_dim, out_features=num_classes)
     
     def flatten_image(self, image: torch.Tensor):
         """
@@ -111,13 +113,16 @@ class VisionTransformer(nn.Module):
         x = self.flatten_image(x) # output shape of B, P*P, D
         x = torch.cat([x, self.cls_token.expand(x.shape[0], -1, -1), self.register_tokens.expand(x.shape[0], -1, -1)], dim=-2) # B, P*P+1, D
         x += self.pos_embeddings
-        x = self.encoder(x)
-        return x
+        x = self.encoder(x) # outputs shape of [B, 261(base + cls_token + registers), 512(emb_dim)]
+        cls_token_emb = x[:, self.cls_token_idx, :]
+        cls_output = self.cls_head(cls_token_emb)
+        cls_output = torch.softmax(cls_output, dim=1)
+        return cls_output
 
 
 def main():
     image = torch.rand((16, 3, 224, 224)).to("cuda:0")
-    vit_transformer = VisionTransformer(patch_size=16, emb_dim=512, image_size=224,num_attn_heads=8, intermediate_size=768, num_layers=4, num_registers=64)
+    vit_transformer = VisionTransformer(patch_size=16, emb_dim=512, image_size=224,num_attn_heads=8, intermediate_size=768, num_layers=4, num_registers=64, num_classes=81)
     vit_transformer.to("cuda:0")
     with torch.inference_mode():
         out = vit_transformer(image)
