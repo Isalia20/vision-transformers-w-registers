@@ -81,13 +81,13 @@ class TransformerEncoder(nn.Module):
 
 
 class VisionTransformer(nn.Module):
-    def __init__(self, image_size, patch_size, emb_dim, num_attn_heads, intermediate_size, num_layers, num_registers, num_classes):
+    def __init__(self, image_size, patch_size, emb_dim, num_attn_heads, intermediate_size, num_layers, num_registers, num_classes, in_channels):
         super().__init__()
         self.patch_size = patch_size
         self.emb_dim = emb_dim
         self.pos_embeddings = nn.Parameter(torch.rand((1, (image_size // patch_size) ** 2 + 1 + num_registers, emb_dim))) # + 1 for cls token
         nn.init.xavier_uniform_(self.pos_embeddings)
-        self.conv = nn.Conv2d(in_channels=3, out_channels=512, kernel_size=patch_size, stride=patch_size)
+        self.conv = nn.Conv2d(in_channels=in_channels, out_channels=emb_dim, kernel_size=patch_size, stride=patch_size)
         self.cls_token = nn.Parameter(torch.rand((1, 1, emb_dim)))
         self.register_tokens = nn.Parameter(torch.rand((1, num_registers, emb_dim)))
         nn.init.xavier_uniform_(self.cls_token)
@@ -122,7 +122,7 @@ class VisionTransformer(nn.Module):
 
 def main():
     image = torch.rand((16, 3, 224, 224)).to("cuda:0")
-    vit_transformer = VisionTransformer(patch_size=16, emb_dim=512, image_size=224,num_attn_heads=8, intermediate_size=768, num_layers=4, num_registers=64, num_classes=81)
+    vit_transformer = VisionTransformer(patch_size=16, emb_dim=512, image_size=224,num_attn_heads=8, intermediate_size=768, num_layers=4, num_registers=64, num_classes=81, in_channels=3)
     vit_transformer.to("cuda:0")
     with torch.inference_mode():
         out = vit_transformer(image)
